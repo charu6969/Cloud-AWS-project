@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Application Load Balancer for E-Commerce"
+
+Resources:
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: ECommerce-ALB
+      Subnets:
+        - !ImportValue ecommerce-vpc-PublicSubnet1
+        - !ImportValue ecommerce-vpc-PublicSubnet2
+      SecurityGroups:
+        - !ImportValue ecommerce-vpc-ALBSecurityGroup
+      Scheme: internet-facing
+      Type: application
+      IpAddressType: ipv4
+      Tags:
+        - Key: Name
+          Value: ECommerce-ALB
+        - Key: CloudConcept
+          Value: LoadBalancing-HighAvailability
+
+  # Target Group for microservices
+  MicroserviceTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: ECommerce-Microservices-TG
+      VpcId: !ImportValue ecommerce-vpc-VPC
+      Protocol: HTTP
+      Port: 3000
+      TargetType: instance
+      HealthCheckEnabled: true
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: 200
+
+  # HTTP Listener
+  HTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref MicroserviceTargetGroup
+
+Outputs:
+  ALBDNSName:
+    Description: DNS name of the load balancer
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Export:
+      Name: !Sub ${AWS::StackName}-ALBDNSName
+
+  TargetGroup:
+    Description: Target Group ARN
+    Value: !Ref MicroserviceTargetGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-TargetGroup

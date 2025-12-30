@@ -1,0 +1,181 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "EC2 Auto Scaling Group for Microservices"
+
+Parameters:
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: EC2 Key Pair for SSH access
+
+Resources:
+  # Launch Template for EC2 instances
+  MicroserviceLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: ECommerce-Microservice-Template
+      LaunchTemplateData:
+        ImageId: ami-0c55b159cbfafe1f0 # Amazon Linux 2 (update for your region)
+        InstanceType: t2.micro
+        KeyName: !Ref KeyName
+        SecurityGroupIds:
+          - !ImportValue ecommerce-vpc-EC2SecurityGroup
+        IamInstanceProfile:
+          Name: !Ref EC2InstanceProfile
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            # CO4: This script runs on the virtualized OS layer
+
+            # Update system
+            yum update -y
+
+            # Install Node.js
+            curl -sL https://rpm.nodesource.com/setup_18.x | bash -
+            yum install -y nodejs git
+
+            # Install CloudWatch agent for monitoring
+            wget https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
+            rpm -U ./amazon-cloudwatch-agent.rpm
+
+            # Clone application code
+            cd /home/ec2-user
+            git clone https://github.com/your-repo/cloud-ecommerce.git
+            cd cloud-ecommerce/backend
+
+            # Install dependencies
+            npm install
+
+            # Set environment variables
+            export RDS_HOSTNAME=${DBEndpoint}
+            export RDS_PORT=${DBPort}
+            export S3_BUCKET_NAME=${S3Bucket}
+            export AWS_REGION=${AWS::Region}
+
+            # Start microservices with PM2 (process manager)
+            npm install -g pm2
+
+            pm2 start api-gateway/server.js --name api-gateway
+            pm2 start product-service/server.js --name product-service
+            pm2 start cart-service/server.js --name cart-service
+            pm2 start order-service/server.js --name order-service
+
+            pm2 startup
+            pm2 save
+
+            echo "Microservices deployed successfully!"
+
+  # IAM Role for EC2 instances
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub "arn:aws:s3:::${S3Bucket}/*"
+        - PolicyName: RDSAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds:DescribeDBInstances
+                Resource: "*"
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2Role
+
+  # Auto Scaling Group - CO2: Elasticity and Scalability
+  MicroserviceAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: ECommerce-Microservices-ASG
+      LaunchTemplate:
+        LaunchTemplateId: !Ref MicroserviceLaunchTemplate
+        Version: !GetAtt MicroserviceLaunchTemplate.LatestVersionNumber
+      MinSize: 2
+      MaxSize: 6
+      DesiredCapacity: 2
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 300
+      VPCZoneIdentifier:
+        - !ImportValue ecommerce-vpc-PrivateSubnet1
+        - !ImportValue ecommerce-vpc-PrivateSubnet2
+      TargetGroupARNs:
+        - !ImportValue ecommerce-alb-TargetGroup
+      Tags:
+        - Key: Name
+          Value: ECommerce-Microservice-Instance
+          PropagateAtLaunch: true
+        - Key: CloudConcept
+          Value: IaaS-AutoScaling
+          PropagateAtLaunch: true
+
+  # Scaling Policies - CO2: Auto-scaling based on CPU
+  ScaleUpPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref MicroserviceAutoScalingGroup
+      Cooldown: 60
+      ScalingAdjustment: 1
+
+  ScaleDownPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref MicroserviceAutoScalingGroup
+      Cooldown: 60
+      ScalingAdjustment: -1
+
+  # CloudWatch Alarms
+  HighCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Scale up when CPU exceeds 70%
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 70
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref MicroserviceAutoScalingGroup
+      AlarmActions:
+        - !Ref ScaleUpPolicy
+
+  LowCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Scale down when CPU is below 30%
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 30
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref MicroserviceAutoScalingGroup
+      AlarmActions:
+        - !Ref ScaleDownPolicy

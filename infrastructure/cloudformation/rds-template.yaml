@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "RDS PostgreSQL Instance for E-Commerce"
+
+Parameters:
+  DBPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: Database admin password
+
+Resources:
+  # RDS Subnet Group
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS
+      SubnetIds:
+        - !ImportValue ecommerce-vpc-PrivateSubnet1
+        - !ImportValue ecommerce-vpc-PrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: ECommerce-DB-SubnetGroup
+
+  # RDS Instance (PaaS - AWS manages OS, patches, backups)
+  ECommerceDB:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: ecommerce-db
+      DBInstanceClass: db.t3.micro
+      Engine: postgres
+      EngineVersion: "15.3"
+      MasterUsername: admin
+      MasterUserPassword: !Ref DBPassword
+      AllocatedStorage: 20
+      StorageType: gp3
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !ImportValue ecommerce-vpc-RDSSecurityGroup
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: "03:00-04:00"
+      PreferredMaintenanceWindow: "sun:04:00-sun:05:00"
+      MultiAZ: false # Set to true for production
+      PubliclyAccessible: false
+      EnableCloudwatchLogsExports:
+        - postgresql
+      Tags:
+        - Key: Name
+          Value: ECommerce-RDS
+        - Key: CloudConcept
+          Value: PaaS-ManagedDatabase
+
+Outputs:
+  DBEndpoint:
+    Description: RDS Endpoint
+    Value: !GetAtt ECommerceDB.Endpoint.Address
+    Export:
+      Name: !Sub ${AWS::StackName}-DBEndpoint
+
+  DBPort:
+    Description: RDS Port
+    Value: !GetAtt ECommerceDB.Endpoint.Port
+    Export:
+      Name: !Sub ${AWS::StackName}-DBPort

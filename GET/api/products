@@ -1,0 +1,12 @@
+Query Parameters:
+- page: number (default: 1)
+- limit: number (default: 12)
+- category: string (optional)
+
+Response (200):
+{
+  "products": [...],
+  "total": 50,
+  "page": 1,
+  "totalPages": 5
+}
