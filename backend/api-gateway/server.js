@@ -101,8 +101,9 @@ app.get("/api/cart", authenticateToken, async (req, res) => {
 app.post("/api/cart", authenticateToken, async (req, res) => {
   try {
     const response = await axios.post(`${SERVICES.cart}/cart`, {
-      ...req.body,
       userId: req.user.userId,
+      productId: req.body.productId,
+      quantity: req.body.quantity || 1,
     });
     res.json(response.data);
   } catch (error) {
