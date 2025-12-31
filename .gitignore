@@ -74,4 +74,4 @@ desktop.ini
 .parcel-cache
 .terraform/
 *.tfstate
-*.tfstate.backup
+*.tfstate.backup    

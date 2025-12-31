@@ -1,5 +1,4 @@
-```sql
--- Shopping cart items
+
 CREATE TABLE IF NOT EXISTS cart_items (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -11,4 +10,3 @@ CREATE TABLE IF NOT EXISTS cart_items (
 );
 
 CREATE INDEX idx_cart_user ON cart_items(user_id);
-```

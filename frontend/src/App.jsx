@@ -5,15 +5,15 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-import Navbar from "./components/Navbar";
-import ProductList from "./components/ProductList";
-import ProductDetails from "./components/ProductDetails";
-import Cart from "./components/Cart";
-import Checkout from "./components/Checkout";
-import Login from "./components/Login";
-import Register from "./components/Register";
-import Orders from "./components/Orders";
-import AdminDashboard from "./components/AdminDashboard";
+import Navbar from "./components/Navbar.jsx";
+import ProductList from "./components/ProductList.jsx";
+import ProductDetails from "./components/ProductDetails.jsx";
+import Cart from "./components/Cart.jsx";
+import Checkout from "./components/Checkout.jsx";
+import Login from "./components/Login.jsx";
+import Register from "./components/Register.jsx";
+import Orders from "./components/Orders.jsx";
+import AdminDashboard from "./components/AdminDashboard.jsx";
 import "./App.css";
 
 function App() {
@@ -33,14 +33,11 @@ function App() {
   const fetchCartCount = async () => {
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/cart`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/cart`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       const data = await response.json();
       setCartCount(data.itemCount || 0);
     } catch (error) {

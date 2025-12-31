@@ -1,5 +1,4 @@
-```sql
--- CO5: User management with role-based access control
+
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -18,4 +17,3 @@ VALUES (
     'Admin User',
     'admin'
 );
-```

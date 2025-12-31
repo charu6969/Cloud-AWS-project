@@ -1,14 +1,7 @@
-```javascript
-/**
- * CO3: Order Microservice
- * Handles order processing and payment integration (SaaS)
- * Demonstrates service-to-service communication
- */
-
-const express = require('express');
-const axios = require('axios');
-const pool = require('../shared/config/database');
-require('dotenv').config();
+const express = require("express");
+const axios = require("axios");
+const pool = require("../shared/config/database");
+require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -16,40 +9,42 @@ const PORT = process.env.PORT || 3003;
 app.use(express.json());
 
 // Service URLs
-const PRODUCT_SERVICE = process.env.PRODUCT_SERVICE_URL || 'http://localhost:3001';
-const CART_SERVICE = process.env.CART_SERVICE_URL || 'http://localhost:3002';
+const PRODUCT_SERVICE =
+  process.env.PRODUCT_SERVICE_URL || "http://localhost:3001";
+const CART_SERVICE = process.env.CART_SERVICE_URL || "http://localhost:3002";
 
 // Health check
-app.get('/health', (req, res) => {
-  res.json({ 
-    service: 'order-service',
-    status: 'healthy',
-    instance: process.env.INSTANCE_ID || 'local'
+app.get("/health", (req, res) => {
+  res.json({
+    service: "order-service",
+    status: "healthy",
+    instance: process.env.INSTANCE_ID || "local",
   });
 });
 
 // Create order
-app.post('/orders', async (req, res) => {
+app.post("/orders", async (req, res) => {
   const client = await pool.connect();
-  
+
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
 
     const { userId, shippingAddress, paymentMethod } = req.body;
 
     // Fetch cart items
     const cartResponse = await axios.get(`${CART_SERVICE}/cart/${userId}`);
+
     const { items, total } = cartResponse.data;
 
     if (items.length === 0) {
-      return res.status(400).json({ error: 'Cart is empty' });
+      return res.status(400).json({ error: "Cart is empty" });
     }
 
     // CO1: SaaS Integration - Payment Gateway (Simulated)
     const paymentResult = await processPayment(paymentMethod, total);
-    
+
     if (!paymentResult.success) {
-      throw new Error('Payment failed');
+      throw new Error("Payment failed");
     }
 
     // Create order
@@ -57,7 +52,13 @@ app.post('/orders', async (req, res) => {
       `INSERT INTO orders (user_id, total_amount, status, shipping_address, payment_method, payment_id)
        VALUES ($1, $2, 'processing', $3, $4, $5)
        RETURNING *`,
-      [userId, total, JSON.stringify(shippingAddress), paymentMethod, paymentResult.transactionId]
+      [
+        userId,
+        total,
+        JSON.stringify(shippingAddress),
+        paymentMethod,
+        paymentResult.transactionId,
+      ]
     );
 
     const orderId = orderResult.rows[0].id;
@@ -71,32 +72,34 @@ app.post('/orders', async (req, res) => {
       );
 
       // Update product stock
-      await axios.patch(`${PRODUCT_SERVICE}/products/${item.product_id}/stock`, {
-        quantity: item.quantity
-      });
+      await axios.patch(
+        `${PRODUCT_SERVICE}/products/${item.product_id}/stock`,
+        {
+          quantity: item.quantity,
+        }
+      );
     }
 
     // Clear cart
     await axios.delete(`${CART_SERVICE}/cart/${userId}`);
 
-    await client.query('COMMIT');
+    await client.query("COMMIT");
 
     res.status(201).json({
       order: orderResult.rows[0],
-      message: 'Order placed successfully'
+      message: "Order placed successfully",
     });
-
   } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Order creation error:', error);
-    res.status(500).json({ error: 'Failed to create order' });
+    await client.query("ROLLBACK");
+    console.error("Order creation error:", error);
+    res.status(500).json({ error: "Failed to create order" });
   } finally {
     client.release();
   }
 });
 
 // Get user orders
-app.get('/orders/:userId', async (req, res) => {
+app.get("/orders/:userId", async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT o.*, 
@@ -118,12 +121,12 @@ app.get('/orders/:userId', async (req, res) => {
 
     res.json(result.rows);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch orders' });
+    res.status(500).json({ error: "Failed to fetch orders" });
   }
 });
 
 // Get order details
-app.get('/orders/detail/:orderId', async (req, res) => {
+app.get("/orders/detail/:orderId", async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT o.*, 
@@ -143,12 +146,12 @@ app.get('/orders/detail/:orderId', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Order not found' });
+      return res.status(404).json({ error: "Order not found" });
     }
 
     res.json(result.rows[0]);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch order' });
+    res.status(500).json({ error: "Failed to fetch order" });
   }
 });
 
@@ -164,7 +167,7 @@ async function processPayment(paymentMethod, amount) {
         success: true,
         transactionId: `TXN-${Date.now()}`,
         amount,
-        method: paymentMethod
+        method: paymentMethod,
       });
     }, 1000);
   });
@@ -175,4 +178,3 @@ app.listen(PORT, () => {
   console.log(`📦 CO3: Independent microservice - Order domain`);
   console.log(`💰 CO1: SaaS payment integration configured`);
 });
-```

@@ -14,10 +14,17 @@ function ProductList({ user, onCartUpdate }) {
 
   const fetchProducts = async () => {
     try {
+      console.log("API URL:", import.meta.env.VITE_API_URL);
+
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/products`
+        `${import.meta.env.VITE_API_URL}/api/products`
       );
+
+      console.log("Response status:", response.status);
+
       const data = await response.json();
+      console.log("Products data:", data);
+
       setProducts(data.products || []);
       setLoading(false);
     } catch (error) {
@@ -34,17 +41,14 @@ function ProductList({ user, onCartUpdate }) {
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/cart`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ productId, quantity: 1 }),
-        }
-      );
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/cart`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ productId, quantity: 1 }),
+      });
 
       if (response.ok) {
         alert("Item added to cart!");

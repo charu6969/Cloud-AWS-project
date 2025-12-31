@@ -1,5 +1,4 @@
-```sql
--- Product catalog
+
 CREATE TABLE IF NOT EXISTS products (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -15,4 +14,3 @@ CREATE TABLE IF NOT EXISTS products (
 
 CREATE INDEX idx_products_category ON products(category);
 CREATE INDEX idx_products_active ON products(active);
-```
