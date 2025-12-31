@@ -7,6 +7,7 @@ function ProductList({ user, onCartUpdate }) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [addingId, setAddingId] = useState(null);
 
   useEffect(() => {
     fetchProducts();
@@ -14,17 +15,11 @@ function ProductList({ user, onCartUpdate }) {
 
   const fetchProducts = async () => {
     try {
-      console.log("API URL:", import.meta.env.VITE_API_URL);
-
+      // Accessing API via Vite environment variable
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/api/products`
       );
-
-      console.log("Response status:", response.status);
-
       const data = await response.json();
-      console.log("Products data:", data);
-
       setProducts(data.products || []);
       setLoading(false);
     } catch (error) {
@@ -39,6 +34,7 @@ function ProductList({ user, onCartUpdate }) {
       return;
     }
 
+    setAddingId(productId);
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/cart`, {
@@ -53,9 +49,15 @@ function ProductList({ user, onCartUpdate }) {
       if (response.ok) {
         alert("Item added to cart!");
         onCartUpdate();
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || "Failed to add to cart");
       }
     } catch (error) {
       console.error("Failed to add to cart:", error);
+      alert("Network error. Please try again later.");
+    } finally {
+      setAddingId(null);
     }
   };
 
@@ -70,29 +72,39 @@ function ProductList({ user, onCartUpdate }) {
   });
 
   if (loading) {
-    return <div className="loading">Loading products...</div>;
+    return (
+      <div className="product-list-container">
+        <div className="loading-state">
+          <p>Fetching your cloud-ready products...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="product-list-container">
-      <div className="product-header">
-        <h1>Our Products</h1>
-        <p className="cloud-info">
-          ☁️ <strong>CO1:</strong> Images stored in AWS S3 |
-          <strong> CO2:</strong> Data from AWS RDS |<strong> CO4:</strong>{" "}
-          Served from EC2 instances
-        </p>
-      </div>
+      <header className="product-header">
+        <h1>Explore Our Collection</h1>
+        <div className="cloud-info">
+          <span className="cloud-badge">☁️ High Availability</span>
+          <p>
+            <strong>CO1:</strong> Images via S3 | <strong>CO2:</strong> RDS Data
+            |<strong>CO4:</strong> EC2 Instances
+          </p>
+        </div>
+      </header>
 
-      <div className="product-filters">
-        <input
-          type="text"
-          placeholder="Search products..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="search-input"
-        />
-        <div className="category-filters">
+      <section className="product-controls">
+        <div className="search-wrapper">
+          <input
+            type="text"
+            placeholder="Search by name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
+        </div>
+        <nav className="category-filters">
           {categories.map((cat) => (
             <button
               key={cat}
@@ -102,37 +114,70 @@ function ProductList({ user, onCartUpdate }) {
               {cat.charAt(0).toUpperCase() + cat.slice(1)}
             </button>
           ))}
-        </div>
-      </div>
+        </nav>
+      </section>
 
-      <div className="product-grid">
-        {filteredProducts.map((product) => (
-          <div key={product.id} className="product-card">
-            <Link to={`/products/${product.id}`}>
-              <img src={product.image_url} alt={product.name} />
-            </Link>
-            <div className="product-info">
-              <h3>{product.name}</h3>
-              <p className="product-description">{product.description}</p>
-              <div className="product-footer">
-                <span className="product-price">${product.price}</span>
-                <span className="product-stock">
-                  {product.stock > 0
-                    ? `${product.stock} in stock`
-                    : "Out of stock"}
-                </span>
+      <main className="product-grid">
+        {filteredProducts.length > 0 ? (
+          filteredProducts.map((product) => (
+            <article key={product.id} className="product-card">
+              <div className="product-image-container">
+                <Link to={`/products/${product.id}`}>
+                  <img
+                    src={product.image_url}
+                    alt={product.name}
+                    loading="lazy"
+                    onError={(e) => {
+                      e.target.src =
+                        "https://via.placeholder.com/400x300?text=Image+Not+Available";
+                    }}
+                  />
+                </Link>
+                {product.stock <= 5 && product.stock > 0 && (
+                  <span className="stock-warning">Low Stock</span>
+                )}
               </div>
-              <button
-                className="btn-add-cart"
-                onClick={() => addToCart(product.id)}
-                disabled={product.stock === 0}
-              >
-                Add to Cart
-              </button>
-            </div>
+
+              <div className="product-info">
+                <h3>{product.name}</h3>
+                <p className="product-description">{product.description}</p>
+
+                <div className="product-footer">
+                  <div className="price-tag">
+                    <span className="currency">$</span>
+                    <span className="amount">{product.price}</span>
+                  </div>
+                  <span
+                    className={`stock-status ${
+                      product.stock > 0 ? "in-stock" : "out-of-stock"
+                    }`}
+                  >
+                    {product.stock > 0
+                      ? `${product.stock} units left`
+                      : "Sold Out"}
+                  </span>
+                </div>
+
+                <button
+                  className="btn-add-cart"
+                  onClick={() => addToCart(product.id)}
+                  disabled={product.stock === 0 || addingId === product.id}
+                >
+                  {addingId === product.id
+                    ? "Adding..."
+                    : product.stock === 0
+                    ? "Unavailable"
+                    : "Add to Cart"}
+                </button>
+              </div>
+            </article>
+          ))
+        ) : (
+          <div className="no-results">
+            <p>No products match your criteria.</p>
           </div>
-        ))}
-      </div>
+        )}
+      </main>
     </div>
   );
 }
